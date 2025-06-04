@@ -1,0 +1,9 @@
+#! /bin/bash
+read -p "Enter the filename or specify full path (eg:/home/username/Documents/file-search) if raised error : " filename
+if [[ -z "${filename}" ]] ; then
+echo " Filename cannot be empty "
+exit 1
+else
+read -p "Enter the word to search:" wordtofind
+nl  "${filename}" | grep  --color=always -Ei "$wordtofind" 
+fi
