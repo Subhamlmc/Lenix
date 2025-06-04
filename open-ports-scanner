@@ -1,0 +1,4 @@
+#! /bin/bash
+read -p " Enter the name of the website : " readwebname
+echo "The name and ipv4 address of the website is :"
+dig A $readwebname +short
