@@ -134,7 +134,7 @@ def arp_flood_detector():
 
     sniff(iface="Wi-Fi", filter="arp", prn=detect, store=0)
 
-def dhcp_starvation_detector():
+def dhcp_starvation_detector(): # detects dhcp ip flood !!
     dhcp_packet_counts = {}
     threshold = 50
     interval = 5
@@ -159,7 +159,7 @@ def dhcp_starvation_detector():
 
     sniff(iface="Wi-Fi", filter="udp and (port 67 or 68)", prn=detect, store=0)
 
-def deauth_flood_detector():
+def deauth_flood_detector(): # treanding attack now a days
     deauth_count = 0
     threshold = 30
     interval = 5
@@ -168,16 +168,16 @@ def deauth_flood_detector():
     def detect(pkt):
         nonlocal deauth_count, last_time
         if pkt.haslayer(Dot11):
-            if pkt.type == 0 and pkt.subtype == 12:  # Deauth frame
+            if pkt.type == 0 and pkt.subtype == 12:  
                 deauth_count += 1
 
         current_time = time.time()
         if current_time - last_time > interval:
             if deauth_count > threshold:
-                print(f"[Deauth Flood] ☣️ Detected {deauth_count} Deauthentication frames --> possible flooding!")
+                print(f"[Deauth Flood]  Detected -----{deauth_count} Deauthentication frames --> possible flooding!")
                 alert_beep()
             else:
-                print(f"[Deauth Flood] ✅ {deauth_count} Deauthentication frames --> Normal traffic")
+                print(f"[Deauth Flood] -----{deauth_count} Deauthentication frames --> Normal traffic")
             deauth_count = 0
             last_time = current_time
 
