@@ -1,4 +1,4 @@
-from scapy.all import *
+from scapy.all import  TCP , ARP, Ether , ICMP , sniff , IP , UDP , DHCP , Dot11
 from scapy.layers.dhcp import DHCP
 import threading
 import time
@@ -182,8 +182,9 @@ def deauth_flood_detector(): # treanding attack now a days
             last_time = current_time
 
     sniff(iface="Wi-Fi", prn=detect, store=0)
-
-# --- Thread Starters (Same Style as Your Code) ---
+    
+    
+#RANDOMIZED THREADING
 mac_thread = threading.Thread(target=mac_flood_detector)
 tcp_thread = threading.Thread(target=tcp_syn_flood_detector)
 udp_thread = threading.Thread(target=udp_flood_detector)
