@@ -1,0 +1,122 @@
+from scapy.all import *
+from scapy.layers.dhcp import DHCP
+from netfilterqueue import NetfilterQueue
+import time
+#THresold=max-packets per 5 second accrdoing to this program
+THRESHOLDS = {
+    "mac": 100,
+    "tcp_syn": 200,
+    "udp": 200,
+    "icmp": 100,
+    "arp": 100,
+    "dhcp": 50,
+    "deauth": 30
+}
+INTERVAL = 5
+
+# Global counters and timers
+counters = {
+    "mac": {},
+    "tcp_syn": {},
+    "udp": {},
+    "icmp": {},
+    "arp": {},
+    "dhcp": {},
+    "deauth": 0
+}
+
+last_check = time.time()
+
+def reset_counters():
+    global counters, last_check
+    for key in counters:
+        if key == "deauth":
+            counters[key] = 0
+        else:
+            counters[key].clear()
+    last_check = time.time()
+
+def should_drop(protocol):
+    total = 0
+    if protocol == "deauth":
+        total = counters["deauth"]
+    else:
+        total = sum(counters[protocol].values())
+    return total > THRESHOLDS[protocol]
+
+def process_packet(packet):
+    global last_check, counters
+
+    payload = IP(packet.get_payload())
+    current_time = time.time()
+
+    #----------------------------------------------->MAC Flood detection<----------------------------------------------------------
+    if Ether in payload:
+        mac_src = payload[Ether].src
+        counters["mac"][mac_src] = counters["mac"].get(mac_src, 0) + 1
+
+    #----------------------------------------------->TCP SYN FLOOD <----------------------------------------------------------
+    if payload.haslayer(TCP) and payload.haslayer(IP):
+        tcp_layer = payload[TCP]
+        if tcp_layer.flags == 'S':
+            src_ip = payload[IP].src
+            counters["tcp_syn"][src_ip] = counters["tcp_syn"].get(src_ip, 0) + 1
+
+     #----------------------------------------------->UDP FLOOD<----------------------------------------------------------
+    if payload.haslayer(UDP) and payload.haslayer(IP):
+        src_ip = payload[IP].src
+        counters["udp"][src_ip] = counters["udp"].get(src_ip, 0) + 1
+
+    #----------------------------------------------->ICMP FLOOD DETECTION<----------------------------------------------------------
+    if payload.haslayer(ICMP) and payload.haslayer(IP):
+        src_ip = payload[IP].src
+        counters["icmp"][src_ip] = counters["icmp"].get(src_ip, 0) + 1
+
+      #----------------------------------------------->ARP Flood detection<----------------------------------------------------------
+    if payload.haslayer(ARP):
+        src_ip = payload[ARP].psrc
+        counters["arp"][src_ip] = counters["arp"].get(src_ip, 0) + 1
+
+      #----------------------------------------------->DHCP STARVATION DETECTION<----------------------------------------------------------
+    if payload.haslayer(DHCP) and Ether in payload:
+        mac = payload[Ether].src
+        counters["dhcp"][mac] = counters["dhcp"].get(mac, 0) + 1
+    if current_time - last_check > INTERVAL:
+        drop_packet = False
+        for proto in ["mac", "tcp_syn", "udp", "icmp", "arp", "dhcp"]:
+            if should_drop(proto):
+                print(f"[{proto.upper()} Flood] Detected excessive packets. Dropping packets for {INTERVAL} seconds.")
+                drop_packet = True
+                break
+
+        if drop_packet:
+            # Reset counters and block packet
+            reset_counters()
+            packet.drop()
+            return
+
+        # Normal traffic
+        print("[Normal Traffic] No thresholds exceeded.")
+        reset_counters()
+
+   
+    packet.accept()
+def main():
+    nfqueue = NetfilterQueue()
+    nfqueue.bind(1, process_packet)
+
+    print("Starting IPS... Press Ctrl+C to stop.")
+    try:
+        nfqueue.run()
+    except KeyboardInterrupt:
+        print("Stopping IPS...")
+    finally:
+        nfqueue.unbind()
+
+main()
+
+#sudo iptables -A INPUT -p tcp --syn -j NFQUEUE --queue-num 1
+#sudo iptables -A INPUT -p udp -j NFQUEUE --queue-num 1
+#sudo iptables -A INPUT -p icmp -j NFQUEUE --queue-num 1
+#sudo iptables -A INPUT -p udp --dport 67:68 -j NFQUEUE --queue-num 1
+#deauth and arp isunsupported by nfqueue so will update after i learn about that
