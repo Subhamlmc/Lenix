@@ -1,6 +1,8 @@
 import subprocess
 import sys
-from colorama import Fore, Style
+from colorama import Fore, Style, init
+
+init(autoreset=True)
 
 def show_banner():
     print(Fore.CYAN + r"""
@@ -11,136 +13,195 @@ def show_banner():
  | |__| | |__| | | \ \| |\  | | |_) | |__| | |__| | |__| | |    | |____| | \ \ 
   \____/ \____/|_|  \_\_| \_| |____/ \____/ \____/ \____/|_|    |______|_|  \_\
                                                                              
-                🚀 Automated Nmap Scanner
-            Made by Subham Lamichhane
-    """ + Style.RESET_ALL)
+                🚀 OPEN SOURCE Automated Nmap Scanner
+                     Made by Subham Lamichhane
+    """)
 
-def scan(target, description, *args):
-    print(Fore.YELLOW + f"[+] {description}..." + Style.RESET_ALL)
-    command = ["nmap"] + list(args) + [target]
+scans = [
+    # --- Stealth scans ---
+    ("Stealth SYN Scan", ["-sS"]),
+    ("TCP Connect Scan", ["-sT"]),
+    ("UDP Scan", ["-sU"]),
+    ("FIN Scan", ["-sF"]),
+    ("NULL Scan", ["-sN"]),
+    ("XMAS Scan", ["-sX"]),
+    ("Maimon Scan", ["-sM"]),
+    ("ACK Scan", ["-sA"]),
+    ("Window Scan", ["-sW"]),
+    ("Idle Scan (requires zombie host)", ["-sI", "192.168.1.100"]),
+
+    # --- Discovery scans ---
+    ("Ping Scan (host discovery only)", ["-sn"]),
+    ("ARP Ping Scan (local subnet only)", ["-PR"]),
+    ("Disable Ping (assume hosts are up)", ["-Pn"]),
+    ("ICMP Echo Ping", ["-PE"]),
+    ("TCP SYN Ping to port 80", ["-PS80"]),
+    ("TCP ACK Ping to port 443", ["-PA443"]),
+    ("UDP Ping to port 53", ["-PU53"]),
+    ("Traceroute Enabled", ["--traceroute"]),
+
+    # --- Version & OS detection ---
+    ("Service Version Detection", ["-sV"]),
+    ("Aggressive Version Detection", ["-sV", "--version-intensity", "9"]),
+    ("OS Detection", ["-O"]),
+    ("OS Detection with OS Guess", ["-O", "--osscan-guess"]),
+    ("OS Detection Limited", ["-O", "--osscan-limit"]),
+
+    # --- NSE scripts (default and categories) ---
+    ("Default Script Scan", ["-sC"]),
+    ("Vulnerability Scripts", ["--script", "vuln"]),
+    ("Brute Force Scripts", ["--script", "brute"]),
+    ("Auth Scripts", ["--script", "auth"]),
+    ("Discovery Scripts", ["--script", "discovery"]),
+    ("Malware Scripts", ["--script", "malware"]),
+    ("Safe Scripts", ["--script", "safe"]),
+    ("Intrusive Scripts", ["--script", "intrusive"]),
+    ("Exploit Scripts", ["--script", "exploit"]),
+
+    # --- Port ranges ---
+    ("Scan Top 100 TCP Ports", ["--top-ports", "100"]),
+    ("Scan Top 1000 TCP Ports", ["--top-ports", "1000"]),
+    ("Scan All Ports", ["-p-", "-T4"]),
+    ("Scan Ports 1-1024", ["-p", "1-1024"]),
+    ("Scan Ports 80,443,8080", ["-p", "80,443,8080"]),
+
+    # --- Timing and performance ---
+    ("Timing Template 0 (Paranoid)", ["-T0"]),
+    ("Timing Template 1 (Sneaky)", ["-T1"]),
+    ("Timing Template 3 (Normal)", ["-T3"]),
+    ("Timing Template 5 (Insane)", ["-T5"]),
+    ("Max Retries 1", ["--max-retries", "1"]),
+    ("Min Rate 1000 packets per second", ["--min-rate", "1000"]),
+
+    # --- Evasion and spoofing ---
+    ("Fragment Packets", ["-f"]),
+    ("Spoof MAC Address (0)", ["--spoof-mac", "0"]),
+    ("Use Decoys (random 5)", ["-D", "RND:5"]),
+    ("Use Fake Source Port 53", ["--source-port", "53"]),
+
+    # --- Output options ---
+    ("Normal Output", ["-oN", "scan_normal.txt"]),
+    ("XML Output", ["-oX", "scan.xml"]),
+    ("Grepable Output", ["-oG", "scan_grep.txt"]),
+    ("All Formats Output", ["-oA", "scan_all"]),
+
+    # --- Firewall evasion ---
+    ("Bad Checksum Packets", ["--badsum"]),
+    ("IP Options (LSRR)", ["--ip-options", "lsrr"]),
+    ("TTL 64", ["--ttl", "64"]),
+
+    # --- More NSE scripts for specific services ---
+    ("HTTP Enumeration Scripts", ["--script", "http-enum"]),
+    ("HTTP Vulnerability Scripts", ["--script", "http-vuln*"]),
+    ("SSH Enumeration Scripts", ["--script", "ssh-hostkey,ssh-auth-methods"]),
+    ("FTP Enumeration Scripts", ["--script", "ftp-anon,ftp-vsftpd-backdoor"]),
+    ("DNS Enumeration Scripts", ["--script", "dns-zone-transfer,dns-recursion"]),
+    ("SMB Enumeration Scripts", ["--script", "smb-enum*"]),
+    ("SNMP Enumeration Scripts", ["--script", "snmp-info,snmp-interfaces"]),
+
+    # --- Misc scans ---
+    ("UDP Scan Top 100 Ports", ["-sU", "--top-ports", "100"]),
+    ("TCP SYN Scan + OS Detection + Version", ["-sS", "-O", "-sV"]),
+    ("Aggressive Scan (OS + Version + Scripts + Traceroute)", ["-A"]),
+    ("Comprehensive Scan (all TCP ports, OS, Version, Scripts)", ["-p-", "-A"]),
+
+    # ---CCTV RTSP scan ---
+    ("CCTV RTSP Scan (Port 554) with RTSP NSE scripts",
+     ["-p", "554", "--script", "rtsp-url-brute,rtsp-methods,rtsp-server-state,media-info"]),
+
+    # --- More port specific scans ---
+    ("Scan Ports 21,22,23,25,53", ["-p", "21,22,23,25,53"]),
+    ("Scan Ports 80,443,8000,8080,8443", ["-p", "80,443,8000,8080,8443"]),
+    ("Scan Ports 3306,3389,5900,8080", ["-p", "3306,3389,5900,8080"]),
+
+    # --- More NSE script categories ---
+    ("Malware + Vulnerability Scripts", ["--script", "malware,vuln"]),
+    ("Brute + Auth Scripts", ["--script", "brute,auth"]),
+    ("Discovery + Safe Scripts", ["--script", "discovery,safe"]),
+    ("Intrusive + Exploit Scripts", ["--script", "intrusive,exploit"]),
+
+    # --- Combine timing and evasion ---
+    ("Aggressive + Fragmentation", ["-T5", "-f"]),
+    ("Sneaky + Decoys", ["-T1", "-D", "RND:5"]),
+    ("Normal + Spoof MAC", ["-T3", "--spoof-mac", "0"]),
+    ("Paranoid + Bad Checksum", ["-T0", "--badsum"]),
+
+    # --- Additional scans with NSE script subsets ---
+    ("HTTP Scripts (enum, vuln, bruteforce)", ["--script", "http-enum,http-vuln*,http-brute"]),
+    ("SMB Scripts (enum, vuln)", ["--script", "smb-enum*,smb-vuln*"]),
+    ("DNS Scripts (zone-transfer, recursion, srv)", ["--script", "dns-zone-transfer,dns-recursion,dns-srv-service"]),
+    ("SNMP Scripts (info, brute)", ["--script", "snmp-info,snmp-brute"]),
+    ("SSH Scripts (hostkey, brute)", ["--script", "ssh-hostkey,ssh-brute"]),
+
+    # --- More miscellaneous scans ---
+    ("Traceroute + Verbose", ["--traceroute", "-v"]),
+    ("Scan with Packet Trace", ["--packet-trace"]),
+    ("Scan with Verbose Output", ["-v"]),
+    ("Scan with Very Verbose Output", ["-vv"]),
+    ("Scan with Debug Output", ["-d"]),
+
+    # --- Scan with timing tweaks ---
+    ("Timing 4 + Max Retries 2", ["-T4", "--max-retries", "2"]),
+    ("Timing 2 + Min Rate 100", ["-T2", "--min-rate", "100"]),
+    ("Timing 3 + Max RTT Timeout 100ms", ["-T3", "--max-rtt-timeout", "100ms"]),
+
+    # --- Scan with spoofed ports ---
+    ("Spoof Source Port 53 + Fragment", ["--source-port", "53", "-f"]),
+    ("Decoys + TTL 64", ["-D", "RND:3", "--ttl", "64"]),
+
+    # --- More port focused scans ---
+    ("Scan UDP Ports 53,67,123", ["-sU", "-p", "53,67,123"]),
+    ("Scan TCP Ports 22,80,443,8080", ["-p", "22,80,443,8080"]),
+
+    # --- Scripts for specific vulnerabilities ---
+    ("Heartbleed Vulnerability Script", ["--script", "ssl-heartbleed"]),
+    ("Shellshock Vulnerability Script", ["--script", "http-shellshock"]),
+    ("SMB Vulnerability Scripts", ["--script", "smb-vuln*"]),
+    ("Apache Struts Vulnerability Scripts", ["--script", "http-vuln-cve2017-5638"]),
+
+    # --- Misc advanced scans ---
+    ("IP Protocol Scan", ["-sO"]),
+    ("Version Intensity 9", ["-sV", "--version-intensity", "9"]),
+    ("Service Info NSE Script", ["--script", "service-info"]),
+
+    # --- Scan with NSE scripts targeting specific CVEs ---
+    ("NSE Scripts for CVE-2020-5902 (F5 BIG-IP)", ["--script", "http-vuln-cve2020-5902"]),
+    ("NSE Scripts for CVE-2017-5638 (Apache Struts)", ["--script", "http-vuln-cve2017-5638"]),
+]
+
+def list_scans():
+    print(Fore.MAGENTA + "\nAvailable Scans:\n" + Style.RESET_ALL)
+    for i, (desc, _) in enumerate(scans, 1):
+        print(f"{i:03}) {desc}")
+
+def run_scan(target, scan_args, desc):
+    print(Fore.YELLOW + f"\n[Running] Scan: {desc}" + Style.RESET_ALL)
+    command = ["nmap"] + scan_args + [target]
     subprocess.run(command)
 
 def main():
     show_banner()
 
     if len(sys.argv) < 2:
-        print("Usage: python3 auto_nmap_100.py <target>")
+        print("Usage: python3 scanner.py <target>")
         sys.exit(1)
 
     target = sys.argv[1]
 
-    scans = [
-        # Basic
-        ("Ping Scan", "-sn"),
-        ("SYN Scan", "-sS"),
-        ("TCP Connect Scan", "-sT"),
-        ("UDP Scan", "-sU"),
-        ("Service Version Detection", "-sV"),
-        ("OS Detection", "-O"),
-        ("Aggressive Scan", "-A"),
-        ("Top 100 Ports Scan", "--top-ports", "100"),
-        ("Scan All Ports", "-p-", "-T4"),
-        ("Stealth FIN Scan", "-sF"),
-        ("Null Scan", "-sN"),
-        ("Xmas Scan", "-sX"),
-        ("Maimon Scan", "-sM"),
-        ("ACK Scan", "-sA"),
-        ("Window Scan", "-sW"),
-        ("No Ping (All hosts up)", "-Pn"),
-        ("Traceroute Enabled", "--traceroute"),
-        ("Scan with Default Scripts", "-sC"),
-        ("Script Scan (Vuln)", "--script=vuln"),
-        ("Script Scan (Brute)", "--script=brute"),
-        ("Script Scan (Auth)", "--script=auth"),
-        ("Script Scan (Malware)", "--script=malware"),
-        ("Spoofed MAC", "--spoof-mac", "0"),
-        ("Decoy Scan", "-D", "RND:10"),
-        ("Fragmented Packets", "-f"),
-        ("Aggressive Timing", "-T5"),
-        ("Polite Timing", "-T0"),
-        ("Min Rate 100pps", "--min-rate", "100"),
-        ("Max Retries 2", "--max-retries", "2"),
-        ("Disable DNS Resolution", "-n"),
-        ("Use System DNS", "--system-dns"),
-        ("Grepable Output", "-oG", "scan.grep"),
-        ("XML Output", "-oX", "scan.xml"),
-        ("All Output Formats", "-oA", "fullscan"),
-        ("TCP Idle Scan", "-sI", "192.168.1.100"),
-        ("FTP Bounce Scan", "-b", "ftp.example.com"),
-        ("Timing Template T3", "-T3"),
-        ("Fragmented with Decoy", "-f", "-D", "192.168.1.100"),
-        ("Scan Port 22 Only", "-p", "22"),
-        ("Top 2000 Ports", "--top-ports", "2000"),
-        ("Guess OS Aggressively", "-O", "--osscan-guess"),
-        ("List Targets Only", "-sL"),
-        ("Random Targets", "-iR", "5"),
-        ("Read From File", "-iL", "targets.txt"),
-        ("Exclude IP", "--exclude", "192.168.1.1"),
-        ("Traceroute + Aggressive", "-A", "--traceroute"),
-        ("Parallelism Level 50", "--min-parallelism", "50"),
-        ("Idle Scan on Port 80", "-sI", "192.168.1.100", "-p", "80"),
-        ("Bad Checksum", "--badsum"),
-        ("Enable Packet Trace", "--packet-trace"),
-        ("Reason Reporting", "--reason"),
-        ("Only Show Open Ports", "--open"),
-        ("Use TCP ACK Ping", "-PA"),
-        ("Use UDP Ping", "-PU"),
-        ("Use ICMP Timestamp Ping", "-PP"),
-        ("Use ICMP Netmask Ping", "-PM"),
-        ("Set TTL", "--ttl", "64"),
-        ("Scan with Version Light", "--version-light"),
-        ("Scan with Version All", "--version-all"),
-        ("Scan Top 10 Ports", "--top-ports", "10"),
-        ("Scan Top 1000 UDP", "-sU", "--top-ports", "1000"),
-        ("Scan TCP Ports 1-1024", "-sS", "-p", "1-1024"),
-        ("Scan Ports 80,443,8080", "-p", "80,443,8080"),
-        ("Randomize Ports", "--randomize-hosts"),
-        ("Increase Max Scan Delay", "--scan-delay", "1s"),
-        ("Scan Delay 100ms", "--scan-delay", "100ms"),
-        ("Limit Host Timeout", "--host-timeout", "10m"),
-        ("Force IP Scan", "--send-ip"),
-        ("Set Source Port", "--source-port", "53"),
-        ("Aggressive Script Timing", "--script-args", "timing=aggressive"),
-        ("Detect Firewall", "-sA"),
-        ("Service Fingerprint", "-sV", "--version-intensity", "9"),
-        ("Enable ICMP Echo", "-PE"),
-        ("Use DNS Servers", "--dns-servers", "8.8.8.8"),
-        ("Scan With Specific Interface", "-e", "eth0"),
-        ("Add IP Options", "--ip-options", "LSRR"),
-        ("Enable Verbose Output", "-v"),
-        ("Increase Verbosity", "-vv"),
-        ("Debug Level 1", "-d"),
-        ("Debug Level 3", "-d3"),
-        ("Scan With Script Trace", "--script-trace"),
-        ("Scan With Updated NSE DB", "--script-updatedb"),
-        ("Show Script Help", "--script-help=ssl-heartbleed"),
-        ("Output with Style", "--stylesheet", "nmap.xsl"),
-        ("Force IPv6", "-6"),
-        ("Use IPv6 with Aggressive", "-6", "-A"),
-        ("Show Interface List", "--iflist"),
-        ("Scan Port Range with Tuning", "-T2", "-p", "1-500"),
-        ("OS Detection with Limit", "--osscan-limit"),
-        ("Use Custom MTU", "--mtu", "24"),
-        ("Output in Normal Format", "-oN", "output.txt"),
-        ("Aggressive Timing With All Ports", "-T5", "-p-"),
-        ("Use NSE Safe Category", "--script", "safe"),
-        ("Use NSE Default Category", "--script", "default"),
-        ("Brute FTP Login", "--script", "ftp-brute"),
-        ("Scan Tor Exit Node", "--proxies", "socks4://127.0.0.1:9050"),
-        ("Scan with ARP Ping", "-PR"),
-        ("Scan with IPv6 Traceroute", "-6", "--traceroute"),
-        ("TCP Window Scan on Port 445", "-sW", "-p", "445"),
-        ("Detect RDP Service", "--script", "rdp-enum-encryption"),
-        ("HTTP Title Grab", "--script", "http-title"),
-        ("SMTP User Enum", "--script", "smtp-enum-users"),
-        ("DNS Zone Transfer", "--script", "dns-zone-transfer")
-    ]
-
-    for index, (description, *args) in enumerate(scans[:100], start=1):
-        try:
-            print(Fore.CYAN + f"\n[Scan {index}/100]" + Style.RESET_ALL)
-            scan(target, description, *args)
-        except KeyboardInterrupt:
-            print(Fore.RED + "\n[!] Scan interrupted." + Style.RESET_ALL)
+    while True:
+        list_scans()
+        choice = input(Fore.CYAN + "\nEnter scan number or 'q' to quit: " + Style.RESET_ALL).strip()
+        if choice.lower() == "q":
+            print(Fore.GREEN + "Exiting. Happy scanning!" + Style.RESET_ALL)
             break
-main()
+
+        if not choice.isdigit() or not (1 <= int(choice) <= len(scans)):
+            print(Fore.RED + "Invalid selection, try again." + Style.RESET_ALL)
+            continue
+
+        idx = int(choice) - 1
+        desc, args = scans[idx]
+        run_scan(target, args, desc)
+
+if __name__ == "__main__":
+    main()
