@@ -202,6 +202,4 @@ def main():
         idx = int(choice) - 1
         desc, args = scans[idx]
         run_scan(target, args, desc)
-
-if __name__ == "__main__":
-    main()
+main()
