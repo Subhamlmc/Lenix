@@ -6,30 +6,49 @@ int main() {
     const char *filename = "password.txt";
     const char *zipname = "password.zip";
 
-    // Command to zip with encryption
-    char zip_command[256];
-    snprintf(zip_command, sizeof(zip_command),
-             "zip -e %s %s", zipname, filename);
+void storePasswords() {
+    char platform[100];
+    char password[100];
+    int save;
 
-    // Run zip command (this will prompt for password)
-    int result = system(zip_command);
-    if (result != 0) {
-        fprintf(stderr, "Error: zip command failed.\n");
-        return 1;
+    printf("How many creds do you want to save? ");
+    scanf("%d", &save);
+    getchar(); 
+
+    FILE *file = fopen("manager.txt", "a");
+    if (!file) {
+        perror("Error opening file");
+        return;
     }
 
-    // Delete the original file
-    char rm_command[256];
-    snprintf(rm_command, sizeof(rm_command),
-             "rm %s", filename);
+    for (int i = 0; i < save; i++) {
+        printf("Enter the name of Platform (e.g., Facebook, YouTube, Gmail): ");
+        fgets(platform, sizeof(platform), stdin);
+        platform[strcspn(platform, "\n")] = 0;
 
-    result = system(rm_command);
-    if (result != 0) {
-        fprintf(stderr, "Error: failed to delete %s\n", filename);
-        return 1;
+        printf("Enter the password of the media: ");
+        fgets(password, sizeof(password), stdin);
+        password[strcspn(password, "\n")] = 0;
+
+        fprintf(file, "%s:%s\n", platform, password);
     }
 
-    printf("File zipped and original deleted successfully.\n");
-    return 0;
+    fclose(file);
+    printf("Passwords saved to manager.txt\n");
+
+    // Step 2: Encrypt using zip -e
+    printf("Encrypting manager.txt to manager.zip...\n");
+    int zipResult = system("zip -e manager.zip manager.txt");  // prompts for password
+    if (zipResult != 0) {
+        fprintf(stderr, "Error: Failed to encrypt manager.txt\n");
+        return;
+    }
+
+    // Step 3: Remove original file
+    int rmResult = system("rm manager.txt");
+    if (rmResult != 0) {
+        fprintf(stderr, "Warning: manager.txt not deleted\n");
+    } else {
+        printf("Original file manager.txt deleted.\n");
+    }
 }
-
