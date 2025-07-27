@@ -12,7 +12,7 @@ void readPasswords();
 int main() {
     int ask;
 
-    printf("Welcome to Password Manager!!\n");
+    printf("Welcome to Password Manager (Linux)!\n");
     printf("What do you want to do?\n");
     printf("Cases:\n");
     printf("1) Store Password.\n");
@@ -74,26 +74,25 @@ void storePasswords() {
     fclose(file);
     printf("Passwords saved to manager.txt\n");
 
-    // Encrypt the file
-    printf("Encrypting manager.txt with zip -e (you'll be prompted for a password)...\n");
+    // Encrypt using zip -e (prompts for password)
+    printf("Encrypting manager.txt into manager.zip...\n");
     int zipResult = system("zip -e manager.zip manager.txt");
     if (zipResult != 0) {
-        fprintf(stderr, "Error: Failed to zip manager.txt\n");
+        fprintf(stderr, "Error: Failed to encrypt manager.txt\n");
         return;
     }
 
-    // Delete original file
+    // Delete manager.txt
     int rmResult = system("rm manager.txt");
     if (rmResult != 0) {
         fprintf(stderr, "Warning: Failed to delete manager.txt\n");
     } else {
-        printf("Original file deleted for security.\n");
+        printf("Original manager.txt deleted.\n");
     }
 }
 
 void dumpPasswords() {
-    // Unzip first (requires password)
-    printf("Unzipping manager.zip to manager.txt (you'll be prompted for a password)...\n");
+    printf("Extracting manager.zip...\n");
     if (system("unzip -o manager.zip") != 0) {
         fprintf(stderr, "Error: Failed to unzip manager.zip\n");
         return;
@@ -117,8 +116,7 @@ void dumpPasswords() {
 }
 
 void readPasswords() {
-    // Unzip first (requires password)
-    printf("Unzipping manager.zip to manager.txt (you'll be prompted for a password)...\n");
+    printf("Extracting manager.zip...\n");
     if (system("unzip -o manager.zip") != 0) {
         fprintf(stderr, "Error: Failed to unzip manager.zip\n");
         return;
@@ -145,7 +143,6 @@ void readPasswords() {
     }
 
     fclose(file);
-
     system("rm manager.txt");
 }
 
