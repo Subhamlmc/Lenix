@@ -1,10 +1,48 @@
 // this is for lazy peoples to store password locally with ZipCrypto Encryption !!
-#include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+#define MAX_LEN 200
+
+void storePasswords();
+void dumpPasswords();
+void readPasswords();
 
 int main() {
-    const char *filename = "password.txt";
-    const char *zipname = "password.zip";
+    int ask;
+
+    printf("Welcome to Password Manager!!\n");
+    printf("What do you want to do?\n");
+    printf("Cases:\n");
+    printf("1) Store Password.\n");
+    printf("2) Dump all stored passwords.\n");
+    printf("3) Read all stored passwords.\n");
+    printf("4) Exit.\n");
+    printf("Enter the Case number (e.g., 1): ");
+
+    scanf("%d", &ask);
+    getchar();  // consume newline
+
+    switch (ask) {
+        case 1:
+            storePasswords();
+            break;
+        case 2:
+            dumpPasswords();
+            break;
+        case 3:
+            readPasswords();
+            break;
+        case 4:
+            printf("Exiting...\n");
+            exit(0);
+        default:
+            printf("Invalid option!\n");
+    }
+
+    return 0;
+}
 
 void storePasswords() {
     char platform[100];
@@ -13,7 +51,7 @@ void storePasswords() {
 
     printf("How many creds do you want to save? ");
     scanf("%d", &save);
-    getchar(); 
+    getchar();  // consume newline
 
     FILE *file = fopen("manager.txt", "a");
     if (!file) {
@@ -36,19 +74,78 @@ void storePasswords() {
     fclose(file);
     printf("Passwords saved to manager.txt\n");
 
-    // Step 2: Encrypt using zip -e
-    printf("Encrypting manager.txt to manager.zip...\n");
-    int zipResult = system("zip -e manager.zip manager.txt");  // prompts for password
+    // Encrypt the file
+    printf("Encrypting manager.txt with zip -e (you'll be prompted for a password)...\n");
+    int zipResult = system("zip -e manager.zip manager.txt");
     if (zipResult != 0) {
-        fprintf(stderr, "Error: Failed to encrypt manager.txt\n");
+        fprintf(stderr, "Error: Failed to zip manager.txt\n");
         return;
     }
 
-    // Step 3: Remove original file
+    // Delete original file
     int rmResult = system("rm manager.txt");
     if (rmResult != 0) {
-        fprintf(stderr, "Warning: manager.txt not deleted\n");
+        fprintf(stderr, "Warning: Failed to delete manager.txt\n");
     } else {
-        printf("Original file manager.txt deleted.\n");
+        printf("Original file deleted for security.\n");
     }
 }
+
+void dumpPasswords() {
+    // Unzip first (requires password)
+    printf("Unzipping manager.zip to manager.txt (you'll be prompted for a password)...\n");
+    if (system("unzip -o manager.zip") != 0) {
+        fprintf(stderr, "Error: Failed to unzip manager.zip\n");
+        return;
+    }
+
+    FILE *file = fopen("manager.txt", "r");
+    if (!file) {
+        perror("Error opening manager.txt");
+        return;
+    }
+
+    printf("\nDumping all stored passwords (raw file contents):\n\n");
+
+    char ch;
+    while ((ch = fgetc(file)) != EOF) {
+        putchar(ch);
+    }
+
+    fclose(file);
+    system("rm manager.txt");
+}
+
+void readPasswords() {
+    // Unzip first (requires password)
+    printf("Unzipping manager.zip to manager.txt (you'll be prompted for a password)...\n");
+    if (system("unzip -o manager.zip") != 0) {
+        fprintf(stderr, "Error: Failed to unzip manager.zip\n");
+        return;
+    }
+
+    FILE *file = fopen("manager.txt", "r");
+    if (!file) {
+        perror("Error opening manager.txt");
+        return;
+    }
+
+    char line[MAX_LEN];
+    printf("\nStored Passwords:\n\n");
+    while (fgets(line, sizeof(line), file)) {
+        char *colon = strchr(line, ':');
+        if (colon != NULL) {
+            *colon = '\0';
+            char *platform = line;
+            char *password = colon + 1;
+            password[strcspn(password, "\n")] = 0;
+
+            printf("Platform: %-15s | Password: %s\n", platform, password);
+        }
+    }
+
+    fclose(file);
+
+    system("rm manager.txt");
+}
+
